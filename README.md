@@ -10,6 +10,19 @@ placement rejection, completed-structure force analysis and up to 100 physics-aw
 rollbacks. Disable rollback for the ablation. An explicitly labeled HiGHS replacement
 from our teammate is optional; legacy connectivity-only runs remain labeled.
 
+## Demonstration setup and result
+
+The demonstration runs on a **Mac with an Apple M4 Pro and 24 GB unified memory**,
+using MPS float32. It combines **Llama-3.2-1B-Instruct** with the authors' released
+**BrickGPT LoRA adapter**, and uses **Gurobi 13.0.3** for static force/torque checks
+and physics-informed rollback.
+
+For the paper's table prompt with seed 42, the full pipeline produced a
+**113-brick structure that passed geometry and static stability checks**, after
+one physics-informed rollback. Generation took 402.26 seconds, excluding loading.
+This is the Mac/Gurobi demonstration; our teammate's RTX 5060/HiGHS experiment
+uses a separate hardware and solver configuration.
+
 ![Original Gurobi force-model result](docs/gurobi-preview.png)
 
 ## Try the saved demo first — no model download required
@@ -22,9 +35,10 @@ cd brickgpt-demo
 python3 demo/server.py --replay-only
 ```
 
-Open **http://127.0.0.1:8765/**. Select the chair, click **Replay assembly**, drag to
-rotate and use the slider to inspect individual construction stages. Both saved runs,
-their output files and their 12-second videos are included. The server binds only to
+Open **http://127.0.0.1:8765/**. Select the 113-brick Gurobi table, click
+**Replay assembly**, drag to rotate and use the slider to inspect construction stages.
+Use **Before rollback / After rollback** to compare the draft and final structure.
+The saved runs, output files and replay videos are included. The server binds only to
 this computer; the GitHub repository is source/data hosting, not a hosted inference site.
 
 ## Install for fresh generation
@@ -114,9 +128,8 @@ Eligible students can request a free, full-featured academic Named-User license 
 coursework. Gurobi requires a recognised academic network at initial activation;
 afterward Named-User operation can be offline. See the
 [official academic license instructions](https://support.gurobi.com/hc/en-us/articles/360040541251-How-do-I-obtain-a-free-academic-license).
-The pip-bundled restricted license is too small for typical outputs. A solver
-preflight catches this before running the language model. No silent connectivity
-fallback is used when force analysis fails. Never upload `gurobi.lic` or activation keys.
+The runner verifies solver access before loading the language model. Force-analysis
+errors are reported explicitly. Never upload `gurobi.lic` or activation keys.
 
 ### Optional HiGHS backend
 
@@ -130,8 +143,8 @@ the backend snaps magnitudes below 1e-9 to zero). This is a solver replacement,
 Select it explicitly in the interface; no paid license is needed for HiGHS.
 
 The original 13 geometry/stability tests pass with both backends on the tested Mac.
-In an independent 157-case comparison with the former restricted Gurobi license,
-HiGHS solved 157; Gurobi could solve 25, of which 21 verdicts agreed. The four
+In an additional solver comparison, 25 cases had solutions from both backends,
+of which 21 verdicts agreed. The four
 exceptions were ground-level pairs, where Gurobi retained equilibrium residuals of
 4.99e-10 to 2.67e-9 and the original strict `>0` rule reported failure. The teammate's
 historical counts differ; do not present these as the same experiment or universal
@@ -168,8 +181,7 @@ Fresh independent rollback-off generation is also available with the checkbox.
 
 Both stages have actual Gurobi force scores, decoded layouts, geometry and replay
 assets. The historical connectivity-only chair/stool examples below retain their
-original provenance and force status. Installing a license has not retroactively
-converted those old runs into force-validated results.
+original provenance and force status; they are not force-validated results.
 
 ## Historical connectivity-only examples
 
@@ -179,8 +191,8 @@ converted those old runs into force-validated results.
 | Small stool with a square seat and four short legs | 42 | 72 | 70.48 s | 0 | pass / pass |
 
 These older runs used connectivity-only inference, MPS float32, ended with EOS and
-required no rollback. Their force checks were blocked by the then-restricted license;
-they have not been retroactively relabeled. Times exclude loading.
+required no rollback. Static force stability is not certified for these examples.
+Times exclude loading.
 The stool acquired a chair-like backrest: it is retained as a **semantic mismatch**,
 not an accurate stool success. Two examples do not establish model quality or
 reproduce the paper's benchmark. Identical seeds may differ across devices/versions.

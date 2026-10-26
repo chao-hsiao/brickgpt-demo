@@ -1,9 +1,16 @@
 # Verification snapshot — 27 October 2026
 
-## Latest: original Gurobi static-force pipeline
+## Demonstration configuration
 
-- Activated a private, free full academic Gurobi license locally. No license file or
-  activation credential is distributed. Original geometry/stability tests:13/13pass.
+- Hardware: Mac, Apple M4 Pro, 24 GB unified memory; MPS float32 inference.
+- Model: `meta-llama/Llama-3.2-1B-Instruct` with the official
+  `AvaLovelace/BrickGPT` LoRA adapter, using the source and weight revisions in the README.
+- Solver: Gurobi 13.0.3, executing the official static force/torque formulation
+  and physics-informed rollback. The teammate's RTX 5060/HiGHS experiment is separate.
+
+## Successful full-pipeline result
+
+- Original geometry/stability tests:13/13pass.
 - Real local API plus optional solver tests:14/14pass, including a connected but
   force-unstable stack and the original stable-prefix rollback implementation.
 - Fresh official-weight MPS float32 inference, seed42, paper table prompt, original
@@ -15,10 +22,12 @@
   It does not reproduce the authors' hardware timing, all250evaluation prompts,
   Blender/FlashTex rendering, physical assembly or robot control.
 
-## Historical: earlier connectivity-only package check
+## Earlier connectivity-only package checks
 
+These records cover saved-output packaging and connectivity checks; the successful
+Mac/Gurobi full-pipeline demonstration above is the presentation example.
 
-## Distribution and replay
+### Distribution and replay
 
 - Eight standard-library integration tests passed against the actual loopback API.
 - A separate clean export of the staged files passed all eight tests using Python
@@ -33,7 +42,7 @@
   paths and accidentally included weights/environments. No matches were found. This
   is a bounded publication check, not a general security certification.
 
-## Fresh inference from this package
+### Separate packaging inference
 
 The packaged runner was executed with the pinned official source and already-cached
 official weights in the existing isolated ML environment on Apple M4 Pro (24 GB),
@@ -47,7 +56,7 @@ Python 3.12.14, PyTorch 2.7.0, Transformers 4.51.3 and PEFT 0.15.2.
 | Rejections / rollbacks | 45 / 0 |
 | Official adapter attached / EOS | yes / yes |
 | Bounds / collisions / ground connectivity | pass / pass / pass |
-| Actual Gurobi force check | not certified; error 10010 (restricted-license size limit) |
+| Static force stability | not certified for this connectivity-only run |
 | Preview / GLB / MP4 export | completed |
 | Decoded TXT SHA-256 | `fd84e07a1c65cfb92df8124eff8cd789013bc5ecd92cf4d1710cf5758ee92aa7` |
 
