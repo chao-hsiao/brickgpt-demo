@@ -146,6 +146,11 @@ cavities. The authors' Blender/LDraw/FlashTex rendering pipeline, texture synthe
 robot control and physical assembly have not been reproduced by this interface.
 Assembly replay visualizes a saved decoded sequence, not real-time inference.
 
+The interactive preview uses WebGL depth testing to keep overlapping brick faces
+in the correct order during rotation. Dragging pauses automatic rotation. If
+WebGL is unavailable, an offscreen Canvas 2D fallback provides a simpler preview;
+its face ordering is approximate.
+
 ## Original Gurobi demo evidence
 
 | Stage of the same real model run | Bricks | Static force result |

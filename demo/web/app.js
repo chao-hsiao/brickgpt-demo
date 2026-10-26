@@ -1,35 +1,92 @@
 const $=id=>document.getElementById(id);
-const canvas=$('canvas'),ctx=canvas.getContext('2d');
+const canvas=$('canvas');
+// Keep actual per-vertex depth: sorting whole faces by their average depth
+// makes long, overlapping bricks pop in front of one another during rotation.
+function createPreviewRenderer(target){
+ const gl=target.getContext('webgl',{alpha:true,antialias:true,depth:true,preserveDrawingBuffer:true});
+ if(!gl){
+  // Atomic presentation also protects the software fallback from clear/resize
+  // flashes. Never clear the visible canvas before the next frame is ready.
+  const ctx=target.getContext('2d'),buffer=document.createElement('canvas'),back=buffer.getContext('2d');
+  return (faces,grid,w,h)=>{
+   if(buffer.width!==target.width)buffer.width=target.width;
+   if(buffer.height!==target.height)buffer.height=target.height;
+   back.setTransform(target.width/w,0,0,target.height/h,0,0);back.clearRect(0,0,w,h);
+   back.strokeStyle='rgba(159,183,154,.12)';back.lineWidth=.7;
+   for(const [a,b] of grid){back.beginPath();back.moveTo(a[0],a[1]);back.lineTo(b[0],b[1]);back.stroke();}
+   for(const f of [...faces].sort((a,b)=>a.depth-b.depth)){
+    back.beginPath();f.pts.forEach((p,i)=>i?back.lineTo(p[0],p[1]):back.moveTo(p[0],p[1]));back.closePath();
+    back.fillStyle=`rgb(${f.rgb.join(',')})`;back.fill();back.strokeStyle='rgba(21,36,20,.45)';back.lineWidth=.6;back.stroke();
+   }
+   ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='copy';ctx.drawImage(buffer,0,0);ctx.globalCompositeOperation='source-over';
+  };
+ }
+ let program,vertexBuffer,position,color,available=true;
+ function initialize(){
+  function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
+  const vertex=shader(gl.VERTEX_SHADER,'attribute vec3 position; attribute vec4 color; varying lowp vec4 tint; void main(){gl_Position=vec4(position,1.0);tint=color;}');
+  const fragment=shader(gl.FRAGMENT_SHADER,'varying lowp vec4 tint; void main(){gl_FragColor=tint;}');
+  program=gl.createProgram();gl.attachShader(program,vertex);gl.attachShader(program,fragment);gl.linkProgram(program);
+  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
+  gl.deleteShader(vertex);gl.deleteShader(fragment);vertexBuffer=gl.createBuffer();
+  position=gl.getAttribLocation(program,'position');color=gl.getAttribLocation(program,'color');
+ }
+ initialize();
+ target.addEventListener('webglcontextlost',e=>{e.preventDefault();available=false;});
+ target.addEventListener('webglcontextrestored',()=>{initialize();available=true;draw();});
+ return (faces,grid,w,h,depthSpan)=>{
+  if(!available)return;
+  gl.viewport(0,0,target.width,target.height);gl.clearColor(0,0,0,0);gl.clearDepth(1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(program);gl.bindBuffer(gl.ARRAY_BUFFER,vertexBuffer);
+  gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,3,gl.FLOAT,false,28,0);
+  gl.enableVertexAttribArray(color);gl.vertexAttribPointer(color,4,gl.FLOAT,false,28,12);
+  const triangles=[],edges=[],floor=[];
+  function vertex(out,p,c){out.push(p[0]/w*2-1,1-p[1]/h*2,-p[2]/depthSpan,...c);}
+  for(const [a,b] of grid){vertex(floor,a,[159/255,183/255,154/255,.12]);vertex(floor,b,[159/255,183/255,154/255,.12]);}
+  for(const f of faces){
+   const tint=f.rgb.map(v=>v/255).concat(1);
+   for(const i of [0,1,2,0,2,3])vertex(triangles,f.pts[i],tint);
+   for(let i=0;i<4;i++){vertex(edges,f.pts[i],[21/255,36/255,20/255,.45]);vertex(edges,f.pts[(i+1)%4],[21/255,36/255,20/255,.45]);}
+  }
+  function upload(data,mode){gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.DYNAMIC_DRAW);gl.drawArrays(mode,0,data.length/7);}
+  gl.disable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);upload(floor,gl.LINES);
+  gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.BLEND);
+  // Offset solid surfaces slightly so their own outlines stay visible; hidden
+  // outlines still fail the depth test instead of shining through other bricks.
+  gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);upload(triangles,gl.TRIANGLES);gl.disable(gl.POLYGON_OFFSET_FILL);
+  gl.enable(gl.BLEND);upload(edges,gl.LINES);
+ };
+}
+const renderPreview=createPreviewRenderer(canvas);
 let bricks=[],visible=0,current=null,currentId=null,yaw=-.72,elevation=.63,zoom=1,drag=null,rotating=false,playTimer=null,runIndex=[];
 const colors=['#d5ed82','#c0db6c','#9fbf62','#7fa858','#608e55','#477655'];
 let generationEnabled=false;
 $('generate').disabled=true;
 async function loadRuntime(){try{const c=await json('/api/config');generationEnabled=c.generation_enabled;$('runtimeMode').textContent=generationEnabled?'● Local · '+c.device:'● Saved-output replay';$('generate').textContent=generationEnabled?'Generate locally ↗':'Replay-only mode';$('generate').title=generationEnabled?'Run the official model locally':'Install the model and restart to enable generation';$('generate').disabled=!generationEnabled||!!(current&&!['complete','failed'].includes(current.status));}catch(e){$('generate').disabled=true;$('record').textContent=e.message;}}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function resize(){let r=canvas.getBoundingClientRect(),d=devicePixelRatio||1;canvas.width=r.width*d;canvas.height=r.height*d;draw();}
+function resize(){const r=canvas.getBoundingClientRect(),d=devicePixelRatio||1,w=Math.max(1,Math.round(r.width*d)),h=Math.max(1,Math.round(r.height*d));if(canvas.width===w&&canvas.height===h)return;canvas.width=w;canvas.height=h;draw();}
 new ResizeObserver(resize).observe(canvas);
 function draw(){
- const d=devicePixelRatio||1,w=canvas.width/d,h=canvas.height/d;ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,w,h);
- if(!bricks.length)return;
+ const d=devicePixelRatio||1,w=canvas.width/d,h=canvas.height/d;
+ if(!bricks.length){renderPreview([],[],w,h,1);return;}
  const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
  for(const b of bricks){lo[0]=Math.min(lo[0],b.x);lo[1]=Math.min(lo[1],b.y);lo[2]=Math.min(lo[2],b.z*1.2);hi[0]=Math.max(hi[0],b.x+b.h);hi[1]=Math.max(hi[1],b.y+b.w);hi[2]=Math.max(hi[2],(b.z+1)*1.2);}
  const center=lo.map((v,i)=>(v+hi[i])/2),extent=Math.max(hi[0]-lo[0],hi[1]-lo[1],hi[2]-lo[2],5),scale=Math.min(w,h)*.68/extent*zoom;
  function project(p){let x=p[0]-center[0],y=p[1]-center[1],z=p[2]-center[2],xx=x*Math.cos(yaw)-y*Math.sin(yaw),yy=x*Math.sin(yaw)+y*Math.cos(yaw);return [w*.5+xx*scale,h*.51+(yy*Math.sin(elevation)-z*Math.cos(elevation))*scale,yy*Math.cos(elevation)+z*Math.sin(elevation)];}
- ctx.strokeStyle='rgba(159,183,154,.12)';ctx.lineWidth=.7;
- let reach=Math.max(20,Math.ceil(extent*1.5));for(let v=-reach;v<=reach;v+=2){for(const pair of [[[center[0]+v,center[1]-reach,0],[center[0]+v,center[1]+reach,0]],[[center[0]-reach,center[1]+v,0],[center[0]+reach,center[1]+v,0]]]){let a=project(pair[0]),b=project(pair[1]);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}}
+ const grid=[];
+ let reach=Math.max(20,Math.ceil(extent*1.5));for(let v=-reach;v<=reach;v+=2){for(const pair of [[[center[0]+v,center[1]-reach,0],[center[0]+v,center[1]+reach,0]],[[center[0]-reach,center[1]+v,0],[center[0]+reach,center[1]+v,0]]])grid.push(pair.map(project));}
  const faceDefs=[[[4,5,6,7],[0,0,1],1],[[0,3,2,1],[0,0,-1],.45],[[1,2,6,5],[1,0,0],.75],[[0,4,7,3],[-1,0,0],.63],[[2,3,7,6],[0,1,0],.83],[[0,1,5,4],[0,-1,0],.67]],faces=[];
  for(const [brickIndex,b] of bricks.slice(0,visible).entries()){
   const x=b.x+.025,y=b.y+.025,z=b.z*1.2+.025,X=b.x+b.h-.025,Y=b.y+b.w-.025,Z=(b.z+1)*1.2-.025;
   const verts=[[x,y,z],[X,y,z],[X,Y,z],[x,Y,z],[x,y,Z],[X,y,Z],[X,Y,Z],[x,Y,Z]].map(project);
   const stress=current?.brick_stress?.[brickIndex];const color=$('stressView').checked&&Number.isFinite(stress)?(stress>=1?'#e55243':`#${Math.round(70+160*stress).toString(16).padStart(2,'0')}${Math.round(190-60*stress).toString(16).padStart(2,'0')}60`):colors[b.z%colors.length];
-  for(const [indices,n,shade]of faceDefs){const facing=(n[0]*Math.sin(yaw)+n[1]*Math.cos(yaw))*Math.cos(elevation)+n[2]*Math.sin(elevation);if(facing<=0)continue;const pts=indices.map(i=>verts[i]);faces.push({pts,depth:pts.reduce((s,p)=>s+p[2],0)/4,color,shade});}
+  for(const [indices,n,shade]of faceDefs){const facing=(n[0]*Math.sin(yaw)+n[1]*Math.cos(yaw))*Math.cos(elevation)+n[2]*Math.sin(elevation);if(facing<=0)continue;const pts=indices.map(i=>verts[i]);faces.push({pts,depth:pts.reduce((s,p)=>s+p[2],0)/4,rgb:color.slice(1).match(/../g).map(v=>Math.round(parseInt(v,16)*shade))});}
  }
- faces.sort((a,b)=>a.depth-b.depth);
- for(const f of faces){ctx.beginPath();f.pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();const c=f.color.slice(1).match(/../g).map(v=>Math.round(parseInt(v,16)*f.shade));ctx.fillStyle=`rgb(${c.join(',')})`;ctx.fill();ctx.strokeStyle='rgba(21,36,20,.45)';ctx.lineWidth=.6;ctx.stroke();}
+ renderPreview(faces,grid,w,h,extent*4);
 }
-canvas.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY,yaw,elevation};canvas.setPointerCapture(e.pointerId);};
+canvas.onpointerdown=e=>{rotating=false;$('rotate').textContent='↻ Rotate';drag={x:e.clientX,y:e.clientY,yaw,elevation};canvas.setPointerCapture(e.pointerId);e.preventDefault();};
 canvas.onpointermove=e=>{if(!drag)return;yaw=drag.yaw+(e.clientX-drag.x)*.008;elevation=Math.max(.15,Math.min(1.35,drag.elevation+(e.clientY-drag.y)*.006));draw();};
-canvas.onpointerup=()=>drag=null;canvas.onpointercancel=()=>drag=null;
+canvas.onpointerup=()=>drag=null;canvas.onpointercancel=()=>drag=null;canvas.onlostpointercapture=()=>drag=null;
 canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.4,Math.min(3,zoom*Math.exp(-e.deltaY*.001)));draw();},{passive:false});
 function setVisible(n){visible=n;$('timeline').value=n;$('count').textContent=`${n} / ${bricks.length}`;draw();}
 $('timeline').oninput=e=>{stopPlay();setVisible(Number(e.target.value));};
@@ -38,7 +95,7 @@ $('play').onclick=()=>{if(playTimer){stopPlay();return;}setVisible(0);$('play').
 $('rotate').onclick=()=>{rotating=!rotating;$('rotate').textContent=rotating?'Ⅱ Stop rotation':'↻ Rotate';};
 $('stressView').onchange=draw;
 $('compare').onclick=()=>{if(current?.comparison_run_id)select(current.comparison_run_id);};
-let lastFrame=0;function frame(t){if(rotating&&t-lastFrame>35){yaw+=.008;draw();lastFrame=t;}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+let lastFrame=0;function frame(t){const elapsed=lastFrame?Math.min(t-lastFrame,100):0;lastFrame=t;if(rotating&&!drag){yaw=(yaw+elapsed*.0002)%(Math.PI*2);draw();}requestAnimationFrame(frame);}requestAnimationFrame(frame);
 async function json(url,options){const r=await fetch(url,options),d=await r.json();if(!r.ok)throw Error(d.error||`HTTP ${r.status}`);return d;}
 function paint(d){
  current=d;const done=d.status==='complete',active=!['complete','failed'].includes(d.status);bricks=d.bricks||d.progress?.bricks||[];
