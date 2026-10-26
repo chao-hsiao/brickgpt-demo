@@ -10,7 +10,7 @@ placement rejection, completed-structure force analysis and up to 100 physics-aw
 rollbacks. Disable rollback for the ablation. An explicitly labeled HiGHS replacement
 from our teammate is optional; legacy connectivity-only runs remain labeled.
 
-![A genuine generated chair](docs/chair-preview.png)
+![Original Gurobi force-model result](docs/gurobi-preview.png)
 
 ## Try the saved demo first — no model download required
 
