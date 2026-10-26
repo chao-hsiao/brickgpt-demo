@@ -1,0 +1,38 @@
+[
+  {
+    "bricks": 174,
+    "stable": false,
+    "seconds": 0.001149042000179179,
+    "kind": "force"
+  },
+  {
+    "bricks": 174,
+    "stable": false,
+    "seconds": 4.700000863522291e-05,
+    "kind": "force"
+  },
+  {
+    "bricks": 24,
+    "stable": false,
+    "seconds": 3.370799822732806e-05,
+    "kind": "force"
+  },
+  {
+    "bricks": 10,
+    "stable": false,
+    "seconds": 0.04679191700415686,
+    "kind": "force"
+  },
+  {
+    "bricks": 3,
+    "stable": true,
+    "seconds": 0.01119499999913387,
+    "kind": "force"
+  },
+  {
+    "bricks": 113,
+    "stable": true,
+    "seconds": 1.5551050840003882,
+    "kind": "force"
+  }
+]

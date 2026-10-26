@@ -41,7 +41,11 @@ def draw_frame(data,count=None,yaw=-.72,video=False):
     d.rectangle((25,646,975,735),fill='#1c251f')
     device=data.get('config',{}).get('device','unknown').upper()
     d.text((40,660),f'{n}/{len(bricks)} bricks | seed {data["seed"]} | generation {data["generation_seconds"]:.1f}s | {device}',font=body,fill='#edf3e9')
-    d.text((40,690),'Connectivity-only inference. Full force stability NOT CERTIFIED (Gurobi license limit).',font=small,fill='#e7b379')
+    legacy=data.get('check_mode')=='official_connectivity_fallback'
+    force_line='Legacy connectivity-only inference; no force certificate.' if legacy else f'Static force model: {data.get("force_stability","unchecked").upper()} | {data.get("solver","unknown")} | rollback {"ON" if data.get("mode")=="full" else "OFF"}'
+    if data.get('source')=='first_draft_from_full_inference_trace':
+        force_line=f'Static force model: {data["force_stability"].upper()} | {data["solver"]} | initial draft from same full run'
+    d.text((40,690),force_line,font=small,fill='#e7b379')
     d.text((40,713),'Simplified brick-box geometry. Saved-output replay, not live inference or a physical simulation.',font=small,fill='#9ca99f')
     return im
 

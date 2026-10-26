@@ -1,5 +1,23 @@
 # Verification snapshot — 27 October 2026
 
+## Latest: original Gurobi static-force pipeline
+
+- Activated a private, free full academic Gurobi license locally. No license file or
+  activation credential is distributed. Original geometry/stability tests:13/13pass.
+- Real local API plus optional solver tests:14/14pass, including a connected but
+  force-unstable stack and the original stable-prefix rollback implementation.
+- Fresh official-weight MPS float32 inference, seed42, paper table prompt, original
+  Gurobi13.0.3: first draft174bricks failed; one rollback retained3bricks; final
+  output113bricks passed geometry and static force checks. Generation402.26seconds.
+- The174brick comparison is extracted from the same inference trace at its first
+  EOS and analyzed with Gurobi. It is not represented as a separately sampled run.
+- This executes the original generation, rejection, force-model and rollback path.
+  It does not reproduce the authors' hardware timing, all250evaluation prompts,
+  Blender/FlashTex rendering, physical assembly or robot control.
+
+## Historical: earlier connectivity-only package check
+
+
 ## Distribution and replay
 
 - Eight standard-library integration tests passed against the actual loopback API.

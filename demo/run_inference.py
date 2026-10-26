@@ -23,6 +23,8 @@ def main():
     parser.add_argument('--run-id', default=time.strftime('%Y%m%d-%H%M%S'))
     parser.add_argument('--device', default='auto', choices=['auto','mps','cpu','cuda'])
     parser.add_argument('--seconds', type=int, default=900)
+    parser.add_argument('--mode', choices=['full','no_rollback','connectivity'], default='full')
+    parser.add_argument('--solver', choices=['highs','gurobi'], default='gurobi')
     args = parser.parse_args()
     if not args.run_id.replace('-', '').replace('_', '').isalnum():
         raise ValueError('Invalid run id')
@@ -39,10 +41,10 @@ def main():
               'status': 'loading_model', 'source': 'fresh_official_model_inference',
               'code_commit': 'da01aab83f646a700e2270b66b4c00180523448b',
               'models': manifest['models'], 'started': time.time(),
-              'check_mode': 'official_connectivity_fallback',
+              'check_mode': 'official_connectivity_fallback' if args.mode=='connectivity' else 'force_model',
+              'mode': args.mode, 'solver': args.solver,
               'physics_certificate': False,
-              'physics_note': 'Restricted Gurobi license rejects even the two-2x6-brick probe. Connectivity is NOT force stability.',
-              'config_differences': {'use_gurobi': False, 'max_regenerations': 10},
+              'physics_note': 'Static force model only; not impact/fracture simulation or a real-world guarantee.',
               'trace_complete': False}
     status_path = out / 'result.json'
     atomic_json(status_path, result)
@@ -55,8 +57,17 @@ def main():
         if args.device == 'auto':
             args.device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
         from brickgpt.models import BrickGPT, BrickGPTConfig
+        from physics_backend import configure
+        result['solver_backend'] = configure(args.solver)
+        # Detect a missing/size-limited license before loading or running the LLM.
+        from brickgpt.data import BrickStructure
+        probe=BrickStructure.from_txt('2x6 (0,0,0)\n2x6 (2,0,0)\n')
+        if not probe.is_stable():
+            raise RuntimeError('Static solver preflight did not validate the ground-brick pair')
+        regenerations=0 if args.mode=='no_rollback' else 100
         config = BrickGPTConfig(model_name_or_path=str(runtime_adapter), device=args.device,
-                                use_gurobi=False, max_regenerations=10)
+                                use_gurobi=args.mode!='connectivity', max_regenerations=regenerations)
+        result['config_differences']={'solver':args.solver,'use_gurobi':config.use_gurobi,'max_regenerations':regenerations}
         result['config'] = dataclasses.asdict(config)
         start = time.perf_counter()
         model = BrickGPT(config)
@@ -93,6 +104,28 @@ def main():
                 print(json.dumps(event), flush=True)
             return brick, reasons
         model.generate_brick_with_rejection_sampling = observe
+        physics_checks=[]
+        rollbacks=[]
+        original_check=model._is_stable
+        def checked(structure):
+            before=time.perf_counter()
+            stable=bool(original_check(structure))
+            check={'bricks':len(structure),'stable':stable,'seconds':time.perf_counter()-before,
+                   'kind':'force' if config.use_gurobi else 'connectivity','stage':'inference'}
+            physics_checks.append(check)
+            atomic_json(out/'physics_checks.json',physics_checks)
+            print(json.dumps({'physics_check':check}),flush=True)
+            return stable
+        model._is_stable=checked
+        original_rollback=model._remove_all_bricks_after_first_unstable_brick
+        def rolled(structure):
+            kept=original_rollback(structure)
+            event={'before':len(structure),'kept':len(kept),'seconds':time.perf_counter()-generation_start}
+            rollbacks.append(event)
+            atomic_json(out/'rollbacks.json',rollbacks)
+            print(json.dumps({'rollback':event}),flush=True)
+            return kept
+        model._remove_all_bricks_after_first_unstable_brick=rolled
         transformers.set_seed(args.seed)
         generation_start = time.perf_counter()
         with torch.inference_mode():
@@ -107,6 +140,7 @@ def main():
             'connected_to_ground': bool(bricks.is_connected()), 'force_stability': 'not_certified',
             'rejection_reasons': dict(output['rejection_reasons']),
             'regenerations': output['n_regenerations'],
+            'physics_checks': physics_checks, 'rollbacks': rollbacks,
             'model_eos_observed': bool(events and events[-1]['eos']),
             'max_bricks_reached': len(bricks.bricks) >= config.max_bricks,
             'trace_complete': True})
@@ -114,13 +148,23 @@ def main():
         (out / 'bricks.ldr').write_text(bricks.to_ldr())
         atomic_json(out / 'upstream_bricks.json', bricks.to_json())
         result['output_sha256'] = hashlib.sha256((out/'bricks.txt').read_bytes()).hexdigest()
-        # Try the genuine static solver on this fresh output, without claiming a fallback is physics.
+        # Full final analysis is performed even for the rollback-off ablation.
         try:
-            result['gurobi_score_max'] = float(bricks.stability_scores().max())
-            result['force_stability'] = 'passed' if result['gurobi_score_max'] < 1 else 'failed'
+            force_start=time.perf_counter()
+            scores=bricks.stability_scores()
+            result['force_score_max'] = float(scores.max())
+            result['brick_stress']=[float(scores[b.slice].max()) for b in bricks.bricks]
+            stable=result['valid_geometry'] and not bricks.has_floating_bricks() and len(bricks)>0 and result['force_score_max']<1
+            result['force_stability'] = 'passed' if stable else 'failed'
+            physics_checks.append({'bricks':len(bricks),'stable':bool(stable),'seconds':time.perf_counter()-force_start,'kind':'force','stage':'final'})
         except Exception as exc:
-            result['gurobi_error_type'] = type(exc).__name__
-            result['gurobi_error_code'] = getattr(exc, 'errno', None)
+            result['force_error_type'] = type(exc).__name__
+            result['force_error_code'] = getattr(exc, 'errno', None)
+            result['force_error_message'] = str(exc)[:240]
+            if args.mode!='connectivity':
+                raise
+        atomic_json(out/'physics_checks.json',physics_checks)
+        atomic_json(out/'rollbacks.json',rollbacks)
         atomic_json(status_path, result)
         print(json.dumps({k:v for k,v in result.items() if k not in ['bricks','models','config']}), flush=True)
         try:

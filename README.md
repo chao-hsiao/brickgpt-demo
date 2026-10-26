@@ -5,6 +5,11 @@ A clean local classroom interface for **text-to-brick generation** with the offi
 Enter a prompt, watch decoded bricks appear, rotate the result, inspect assembly order,
 and export TXT, LDraw, JSON, GLB or a saved-output MP4.
 
+**New generation defaults to the authors' full static-force loop with Gurobi:**
+placement rejection, completed-structure force analysis and up to 100 physics-aware
+rollbacks. Disable rollback for the ablation. An explicitly labeled HiGHS replacement
+from our teammate is optional; legacy connectivity-only runs remain labeled.
+
 ![A genuine generated chair](docs/chair-preview.png)
 
 ## Try the saved demo first — no model download required
@@ -78,41 +83,99 @@ weights. Otherwise the server automatically offers saved-output replay only.
 | LoRA adapter | `AvaLovelace/BrickGPT` | `19737def7bfe5950b2a466825ad7c6d74b7eafe3` |
 | Generator source | `AvaLovelace1/BrickGPT` | `da01aab83f646a700e2270b66b4c00180523448b` |
 
+Tested Gurobi is 13.0.3; the official repository's `uv.lock` pins 12.0.2. This
+interface follows the original source and force model, rather than claiming a
+bit-identical software environment or reproduction of every paper figure.
+
 The adapter is the authors' released BrickGPT checkpoint, not a model trained by this
 project. A separate local adapter configuration redirects the base path to the cached
 snapshot; weights are not modified. The interface shows the base and adapter names
 from the selected run's metadata, with separate loading/generation/replay labels.
 
-## What this demo checks
+## Static physics and rollback
 
-**This version uses the official connectivity fallback (`use_gurobi=False`). It does
-not reproduce the paper's full force-based stability loop.** It checks grid bounds,
-collisions and connection to the ground. Connectivity is not force/torque equilibrium.
-It may roll back for connectivity; this must not be described as force-based rollback.
-`max_regenerations` is bounded to 10 instead of the upstream default of 100.
+The default is **Gurobi**, the solver used by the paper and official implementation.
+The model weights, token masking, rejection sampling, force/torque formulation and
+prefix-pruning algorithm are the official source at the pinned commit. Default
+`use_gurobi=True`, `max_regenerations=100`, temperature 0.6 and world size 20 are
+preserved. There is a 900-second classroom wall-clock guard.
 
-The runner also attempts the genuine Gurobi static check after generation and records
-the verdict or error separately. On the tested machine, the restricted license rejects
-the model size (error 10010); the saved outputs are **not certified force-stable**.
+A completed draft is checked for static stability. If it fails, the original loop
+removes bricks starting at its first unstable brick until a stable prefix remains,
+then continues generation. The UI records both rejected proposals and rollback
+transitions, e.g. `174→21`; it shows final per-brick force scores on request.
+Turning **Physics-informed rollback** off preserves the first draft and still runs
+final force analysis, allowing a stable/unstable comparison with the same seed.
 
-Our teammate's [HiGHS demo](https://github.com/sauramt/brickgpt-demo) provides a
-different backend for force analysis and rollback comparisons. That backend has **not
-been integrated or independently validated in this interface**. When presenting the
-two versions, distinguish their hardware, runs and verification modes.
+### Gurobi setup
 
-The viewer and GLB show simplified brick boxes at the LDraw ratio 20:20:24, with small
-visual gaps. Studs, cavities and the official Blender/FlashTex renderer are omitted.
-Assembly replay visualizes saved model output; it is not live inference at replay
-speed, a physical collapse simulation or a destruction experiment.
+Obtain and activate a valid Gurobi license on **your own machine** before generation.
+Eligible students can request a free, full-featured academic Named-User license for
+coursework. Gurobi requires a recognised academic network at initial activation;
+afterward Named-User operation can be offline. See the
+[official academic license instructions](https://support.gurobi.com/hc/en-us/articles/360040541251-How-do-I-obtain-a-free-academic-license).
+The pip-bundled restricted license is too small for typical outputs. A solver
+preflight catches this before running the language model. No silent connectivity
+fallback is used when force analysis fails. Never upload `gurobi.lic` or activation keys.
 
-## Included genuine model runs
+### Optional HiGHS backend
+
+Our teammate's [HiGHS demo](https://github.com/sauramt/brickgpt-demo) replaces the
+solver through a linear reformulation. Its attributed backend is included unmodified
+under `demo/vendor`, pinned at commit `90d6efee0183b2360950340e3c82f83b4f6056e1`.
+Our separate wrapper audits the raw solution against the original equality, absolute
+value, maximum and complementarity constraints before accepting it (tolerance 1e-8;
+the backend snaps magnitudes below 1e-9 to zero). This is a solver replacement,
+**not the original solver**, and not a claim of identical outputs on every input.
+Select it explicitly in the interface; no paid license is needed for HiGHS.
+
+The original 13 geometry/stability tests pass with both backends on the tested Mac.
+In an independent 157-case comparison with the former restricted Gurobi license,
+HiGHS solved 157; Gurobi could solve 25, of which 21 verdicts agreed. The four
+exceptions were ground-level pairs, where Gurobi retained equilibrium residuals of
+4.99e-10 to 2.67e-9 and the original strict `>0` rule reported failure. The teammate's
+historical counts differ; do not present these as the same experiment or universal
+proof of equivalence.
+
+### Scope
+
+A passing result means **the implemented static assembly model passes**. It is not
+an impact/fracture simulation or a guarantee about a physical construction. The
+viewer and GLB use simplified boxes at the LDraw ratio 20:20:24, omitting studs and
+cavities. The authors' Blender/LDraw/FlashTex rendering pipeline, texture synthesis,
+robot control and physical assembly have not been reproduced by this interface.
+Assembly replay visualizes a saved decoded sequence, not real-time inference.
+
+## Original Gurobi demo evidence
+
+| Stage of the same real model run | Bricks | Static force result |
+|---|---:|---|
+| Initial draft, at first EOS | 174 | failed |
+| Final output after one physics rollback (174→3) | 113 | passed |
+
+Prompt: `Table featuring a flat rectangular surface over four evenly spaced legs.`
+Seed 42; Apple MPS float32; Gurobi 13.0.3; official weights/source pins above.
+Full generation took 402.26 seconds, loading excluded. This is a single example,
+not the authors' hardware timing or benchmark. The initial 174-brick draft is
+extracted from the **same full inference trace**, not a separately sampled second
+inference. The UI explicitly labels it and links **Before rollback / After rollback**.
+Fresh independent rollback-off generation is also available with the checkbox.
+
+Both stages have actual Gurobi force scores, decoded layouts, geometry and replay
+assets. The historical connectivity-only chair/stool examples below retain their
+original provenance and force status. Installing a license has not retroactively
+converted those old runs into force-validated results.
+
+## Historical connectivity-only examples
 
 | Prompt | Seed | Bricks | Generation | Rejections | Geometry / connectivity |
 |---|---:|---:|---:|---:|---|
 | High-backed chair with four legs and a flat seat | 42 | 72 | 86.01 s | 45 | pass / pass |
 | Small stool with a square seat and four short legs | 42 | 72 | 70.48 s | 0 | pass / pass |
 
-Both used MPS float32, ended with EOS and required no rollback. Times exclude loading.
+These older runs used connectivity-only inference, MPS float32, ended with EOS and
+required no rollback. Their force checks were blocked by the then-restricted license;
+they have not been retroactively relabeled. Times exclude loading.
 The stool acquired a chair-like backrest: it is retained as a **semantic mismatch**,
 not an accurate stool success. Two examples do not establish model quality or
 reproduce the paper's benchmark. Identical seeds may differ across devices/versions.
@@ -124,8 +187,11 @@ See each run's `result.json`, `trace.jsonl` and original decoded `bricks.txt`.
 python3 -m unittest discover -s tests -v
 ```
 
-These standard-library tests cover saved-output/API behavior, file boundaries and
-replay-mode generation refusal; they do not substitute for model-quality or physics tests.
+The standard-library tests cover saved-output/API behavior, file boundaries and
+replay-mode generation refusal. Optional real-solver tests run when the official
+source and ML/solver packages are installed. These include a connected but force-
+unstable stack and the original stable-prefix rollback method; they do not substitute
+for a generation benchmark or physical assembly.
 See the [verification snapshot](docs/validation.md) for the clean-export check and
 a fresh inference run of this packaged runner.
 Dependencies are isolated in `.venv`. SciPy 1.17.1 avoids the native PROPACK loader
@@ -139,7 +205,8 @@ Kangle Deng, Ruixuan Liu, Deva Ramanan, Changliu Liu and Jun-Yan Zhu,
 [Paper](https://arxiv.org/abs/2505.05469) · [Official code](https://github.com/AvaLovelace1/BrickGPT)
 · [Official model](https://huggingface.co/AvaLovelace/BrickGPT).
 
-This wrapper is MIT licensed. Upstream code retains its own MIT license; Llama model
+This wrapper is MIT licensed. The vendored HiGHS adapter retains Group 8's MIT
+notice in `demo/vendor/TEAMMATE_LICENSE.txt`. Upstream code retains its own MIT license; Llama model
 weights remain subject to the Llama 3.2 Community License and applicable usage policy.
 No model weights, credentials, private course documents or local environment files
 are distributed here. This project is not affiliated with or endorsed by LEGO.

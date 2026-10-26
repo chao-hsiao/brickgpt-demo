@@ -7,6 +7,8 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+import tempfile
+from unittest.mock import patch, Mock
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('demo_server', ROOT/'demo/server.py')
@@ -74,6 +76,35 @@ class ReplayAPITests(unittest.TestCase):
     def test_replay_refuses_generation(self):
         self.post_error({'prompt':'A chair.','seed':42},503)
         self.assertIsNone(server.process)
+
+    def test_force_comparison_preserves_initial_trace(self):
+        full=json.loads(self.get('/api/runs/gurobi-table-s42-full'))
+        draft=json.loads(self.get('/api/runs/gurobi-table-s42-first-draft'))
+        self.assertEqual(full['force_stability'],'passed')
+        self.assertEqual(draft['force_stability'],'failed')
+        self.assertEqual(draft['source'],'first_draft_from_full_inference_trace')
+        self.assertEqual(draft['mode'],'first_draft')
+        self.assertEqual(full['rollbacks'],[{'before':174,'kept':3,'seconds':full['rollbacks'][0]['seconds']}])
+        events=[json.loads(line) for line in (ROOT/'demo/runs/gurobi-table-s42-full/trace.jsonl').read_text().splitlines()]
+        initial=[]
+        for e in events:
+            if e['eos']:break
+            initial.append(e['brick'].rstrip('\n'))
+        saved=self.get('/downloads/gurobi-table-s42-first-draft/bricks.txt').decode().splitlines()
+        self.assertEqual(initial,saved)
+
+    def test_api_passes_selected_solver_and_rollback_mode(self):
+        server.generation_enabled=True
+        try:
+            with tempfile.TemporaryDirectory() as tmp, patch.object(server,'HERE',Path(tmp)), patch.object(server.subprocess,'Popen',return_value=Mock()) as spawn:
+                req=urllib.request.Request(self.url+'/api/generate',data=json.dumps({'prompt':'A table.','seed':42,'mode':'no_rollback','solver':'gurobi'}).encode(),headers={'Content-Type':'application/json'})
+                with urllib.request.urlopen(req,timeout=5) as response:self.assertEqual(response.status,202)
+                args=spawn.call_args.args[0]
+                self.assertEqual(args[args.index('--mode')+1],'no_rollback')
+                self.assertEqual(args[args.index('--solver')+1],'gurobi')
+        finally:
+            server.process=None
+            server.generation_enabled=False
 
     def test_foreign_origin_refused(self):
         self.post_error({'prompt':'A chair.'},403,origin='https://example.com')

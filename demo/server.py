@@ -27,13 +27,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path=urlparse(self.path).path
         if path=='/api/config':
-            return self.json({'generation_enabled': generation_enabled, 'device': device})
+            return self.json({'generation_enabled': generation_enabled, 'device': device,'default_solver':'gurobi'})
         if path=='/api/runs':
             entries=[]
             for f in sorted(RUNS.glob('*/result.json'),reverse=True):
                 try:
                     d=json.loads(f.read_text())
-                    entries.append({k:d.get(k) for k in ['run_id','prompt','seed','status','brick_count','generation_seconds','error_type','assets','started']})
+                    entries.append({k:d.get(k) for k in ['run_id','prompt','seed','status','brick_count','generation_seconds','error_type','assets','started','mode','solver','check_mode','force_stability']})
                 except (ValueError,OSError):continue
             entries.sort(key=lambda x:x.get('started',0),reverse=True)
             return self.json(entries)
@@ -45,12 +45,15 @@ class Handler(BaseHTTPRequestHandler):
                 d=json.loads((folder/'result.json').read_text())
                 if d['status']!='complete' and (folder/'progress.json').exists():
                     d['progress']=json.loads((folder/'progress.json').read_text())
+                for key in ['physics_checks','rollbacks']:
+                    if (folder/(key+'.json')).exists():
+                        d[key]=json.loads((folder/(key+'.json')).read_text())
                 # Credentials are never persisted in run records.
                 return self.json(d)
             except (OSError,ValueError):return self.json({'error':'Run not ready'},404)
         if path.startswith('/downloads/'):
             pieces=path.split('/')
-            allowed={'bricks.txt','bricks.ldr','upstream_bricks.json','result.json','structure.glb','preview.png','assembly_replay.mp4'}
+            allowed={'bricks.txt','bricks.ldr','upstream_bricks.json','result.json','structure.glb','preview.png','assembly_replay.mp4','physics_checks.json','rollbacks.json'}
             if len(pieces)!=4 or not safe_id(pieces[2]) or pieces[3] not in allowed:
                 return self.json({'error':'Not found'},404)
             target=RUNS/pieces[2]/pieces[3]
@@ -80,6 +83,8 @@ class Handler(BaseHTTPRequestHandler):
             d=json.loads(self.rfile.read(length))
             if not isinstance(d,dict) or not isinstance(d.get('prompt'),str):raise ValueError()
             prompt=d['prompt'].strip();seed=int(d.get('seed',42))
+            mode=d.get('mode','full');solver=d.get('solver','gurobi')
+            if mode not in ['full','no_rollback','connectivity'] or solver not in ['gurobi','highs']:raise ValueError()
             if not 1<=len(prompt)<=600 or not 0<=seed<=2147483647:raise ValueError()
         except (ValueError,KeyError,TypeError):return self.json({'error':'Provide a prompt and a valid seed'},400)
         with lock:
@@ -87,7 +92,7 @@ class Handler(BaseHTTPRequestHandler):
             rid='live-'+time.strftime('%Y%m%d-%H%M%S')+'-'+str(time.time_ns()%1000000)
             (HERE/'logs').mkdir(exist_ok=True)
             with (HERE/'logs'/f'{rid}.log').open('w') as log:
-                process=subprocess.Popen([sys.executable,'-u',str(HERE/'run_inference.py'),'--run-id',rid,'--prompt',prompt,'--seed',str(seed),'--device',device],stdout=log,stderr=subprocess.STDOUT)
+                process=subprocess.Popen([sys.executable,'-u',str(HERE/'run_inference.py'),'--run-id',rid,'--prompt',prompt,'--seed',str(seed),'--device',device,'--mode',mode,'--solver',solver],stdout=log,stderr=subprocess.STDOUT)
         self.json({'run_id':rid,'status':'starting'},202)
 
 if __name__=='__main__':
