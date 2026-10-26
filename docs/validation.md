@@ -1,0 +1,42 @@
+# Verification snapshot — 27 October 2026
+
+## Distribution and replay
+
+- Eight standard-library integration tests passed against the actual loopback API.
+- A separate clean export of the staged files passed all eight tests using Python
+  with site packages disabled (`-S`). No weights, local manifest, upstream checkout,
+  virtual environment or extra Python package was present in that export.
+- The clean export started successfully, automatically selected replay-only mode and
+  exposed exactly the two shipped reference runs. Its temporary server was stopped.
+- Browser checks confirmed model identity, disabled generation in replay-only mode,
+  saved output rendering and the assembly replay control.
+- Python compilation, JavaScript syntax and shell syntax checks passed.
+- The publication file list was checked for common credential patterns, private home
+  paths and accidentally included weights/environments. No matches were found. This
+  is a bounded publication check, not a general security certification.
+
+## Fresh inference from this package
+
+The packaged runner was executed with the pinned official source and already-cached
+official weights in the existing isolated ML environment on Apple M4 Pro (24 GB),
+Python 3.12.14, PyTorch 2.7.0, Transformers 4.51.3 and PEFT 0.15.2.
+
+| Item | Observed |
+|---|---|
+| Prompt | A high-backed chair with four legs and a flat seat. |
+| Seed / device / dtype | 42 / MPS / float32 |
+| Bricks / generation time | 72 / 121.46 seconds (loading excluded) |
+| Rejections / rollbacks | 45 / 0 |
+| Official adapter attached / EOS | yes / yes |
+| Bounds / collisions / ground connectivity | pass / pass / pass |
+| Actual Gurobi force check | not certified; error 10010 (restricted-license size limit) |
+| Preview / GLB / MP4 export | completed |
+| Decoded TXT SHA-256 | `fd84e07a1c65cfb92df8124eff8cd789013bc5ecd92cf4d1710cf5758ee92aa7` |
+
+The TXT hash matches the shipped 86.01-second chair run despite the different elapsed
+time. The additional packaging run remains a local ignored output; its model weights
+and local configuration are not part of the repository.
+
+This validates the package's inference path using the existing ML environment and
+cache. It is not a fresh installation of all ML dependencies, a CUDA/CPU/WSL test,
+a quality benchmark, a full physics validation or a reproduction of the paper's metrics.

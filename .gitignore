@@ -1,0 +1,14 @@
+.venv/
+models/
+repos/
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
+.env.*
+*.log
+demo/logs/
+demo/model_manifest.json
+demo/runs/*
+!demo/runs/live-20261026-214335/
+!demo/runs/stool_seed42_scipyfix/

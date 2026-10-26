@@ -1,0 +1,34 @@
+BrickGPT Demo Prompts
+Suggested seed: 42
+
+1. 高背椅（此描述已在本機實測生成成功）
+A high-backed chair with four legs and a flat seat.
+
+下列描述尚未在本機逐一驗證生成效果。
+
+2. 桌子
+A rectangular table with a flat top and four sturdy legs.
+
+3. 長椅
+A long bench with a flat seat, four legs, and no backrest.
+
+4. 書架
+A tall bookshelf with two side walls and three horizontal shelves.
+
+5. 樓梯
+A staircase with five wide steps ascending in one direction.
+
+6. 拱門
+A wide archway supported by two thick pillars.
+
+7. 橋
+A short bridge with a flat deck supported by two thick pillars.
+
+8. 城堡塔樓
+A square castle tower with a wide base and battlements at the top.
+
+9. 無靠背凳子（加強描述，尚未驗證）
+A small stool with a square seat and four short legs, without a backrest.
+
+備註：先前未加「without a backrest」的凳子描述曾生成帶靠背的結構。
+幾何合法與連通性通過，不代表外形符合描述，也不代表完整物理穩定。

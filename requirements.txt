@@ -1,0 +1,11 @@
+# Python 3.12 recommended. Install the appropriate PyTorch build first for CUDA.
+torch==2.7.0
+transformers==4.51.3
+peft==0.15.2
+accelerate==1.6.0
+huggingface-hub==0.30.2
+numpy==1.26.4
+scipy==1.17.1
+gurobipy==13.0.3
+pillow==13.0.0
+trimesh==5.1.1
