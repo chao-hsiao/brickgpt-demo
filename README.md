@@ -179,6 +179,20 @@ extracted from the **same full inference trace**, not a separately sampled secon
 inference. The UI explicitly labels it and links **Before rollback / After rollback**.
 Fresh independent rollback-off generation is also available with the checkbox.
 
+New completed full-mode runs that actually roll back automatically save their own
+initial draft and enable **Before rollback / After rollback**. These buttons switch
+between saved stages of the same inference; they do not trigger a rollback or run
+the model again. Runs with rollback disabled, or no rollback needed, have no pair;
+hover over the disabled button for the reason. To recover an older complete run
+with a saved trace, use the installed ML/solver environment:
+
+```sh
+.venv/bin/python demo/comparison.py demo/runs/<run-id>
+```
+
+This reconstructs the draft from that run's trace and rechecks its force scores
+without loading the language model. It preserves the final generated structure.
+
 Both stages have actual Gurobi force scores, decoded layouts, geometry and replay
 assets. The historical connectivity-only chair/stool examples below retain their
 original provenance and force status; they are not force-validated results.

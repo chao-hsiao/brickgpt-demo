@@ -33,7 +33,7 @@ class Handler(BaseHTTPRequestHandler):
             for f in sorted(RUNS.glob('*/result.json'),reverse=True):
                 try:
                     d=json.loads(f.read_text())
-                    entries.append({k:d.get(k) for k in ['run_id','prompt','seed','status','brick_count','generation_seconds','error_type','assets','started','mode','solver','check_mode','force_stability']})
+                    entries.append({k:d.get(k) for k in ['run_id','prompt','seed','status','brick_count','generation_seconds','error_type','assets','started','mode','solver','check_mode','force_stability','comparison_run_id','comparison_error_type']})
                 except (ValueError,OSError):continue
             entries.sort(key=lambda x:x.get('started',0),reverse=True)
             return self.json(entries)

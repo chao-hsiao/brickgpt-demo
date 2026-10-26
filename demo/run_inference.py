@@ -166,6 +166,16 @@ def main():
         atomic_json(out/'physics_checks.json',physics_checks)
         atomic_json(out/'rollbacks.json',rollbacks)
         atomic_json(status_path, result)
+        try:
+            from comparison import ensure_comparison
+            draft_id = ensure_comparison(out)
+            if draft_id:
+                result['comparison_run_id'] = draft_id
+        except Exception as comparison_error:
+            # Comparison export must not relabel successful model inference as
+            # failed. Preserve the trace for a later explicit backfill.
+            result['comparison_error_type'] = type(comparison_error).__name__
+        atomic_json(status_path, result)
         print(json.dumps({k:v for k,v in result.items() if k not in ['bricks','models','config']}), flush=True)
         try:
             from make_assets import export

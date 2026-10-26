@@ -84,6 +84,8 @@ class ReplayAPITests(unittest.TestCase):
         self.assertEqual(draft['force_stability'],'failed')
         self.assertEqual(draft['source'],'first_draft_from_full_inference_trace')
         self.assertEqual(draft['mode'],'first_draft')
+        listed=next(r for r in json.loads(self.get('/api/runs')) if r['run_id']==full['run_id'])
+        self.assertEqual(listed['comparison_run_id'],draft['run_id'])
         self.assertEqual(full['rollbacks'],[{'before':174,'kept':3,'seconds':full['rollbacks'][0]['seconds']}])
         events=[json.loads(line) for line in (ROOT/'demo/runs/gurobi-table-s42-full/trace.jsonl').read_text().splitlines()]
         initial=[]

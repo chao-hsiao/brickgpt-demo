@@ -102,7 +102,8 @@ function paint(d){
  const legacy=d.check_mode==='official_connectivity_fallback'||!d.mode;
  $('validationMode').textContent=legacy?'Saved run · connectivity':`${d.solver==='gurobi'?'Gurobi':'HiGHS'} · ${d.source==='first_draft_from_full_inference_trace'?'first draft':'rollback '+(d.mode==='full'?'on':'off')}`;
  $('stressView').disabled=!Array.isArray(d.brick_stress);if($('stressView').disabled)$('stressView').checked=false;
- $('compare').disabled=!d.comparison_run_id;$('compare').textContent=d.mode==='full'?'Before rollback':'After rollback';
+ $('compare').disabled=!d.comparison_run_id;$('compare').textContent=d.mode==='first_draft'?'After rollback':'Before rollback';
+ $('compare').title=d.comparison_run_id?'Switch between the saved initial draft and final output of this same run.':active?'Comparison becomes available after a completed run with a rollback.':d.mode==='no_rollback'?'Rollback was disabled for this run.':d.rollbacks?.length?'The initial draft comparison is not available for this saved run.':'No physics rollback occurred in this run.';
  $('baseModel').textContent=d.models?.[0]?.repo||'meta-llama/Llama-3.2-1B-Instruct';
  $('adapterModel').textContent=d.models?.[1]?.repo||'AvaLovelace/BrickGPT';
  $('modelContext').textContent=done?'Model used for this saved run.':d.status==='failed'?'Configured model for this failed run.':d.status==='loading_model'?'Loading model for this run…':'Generating with this model…';
@@ -128,4 +129,4 @@ async function refresh(){try{runIndex=await json('/api/runs');drawList();if(!cur
 async function update(){if(!currentId)return;try{paint(await json('/api/runs/'+encodeURIComponent(currentId)));}catch(e){$('record').textContent=e.message;}}
 $('refresh').onclick=refresh;document.querySelectorAll('.preset').forEach(b=>b.onclick=()=>{$('prompt').value=b.dataset.prompt;});
 $('generate').onclick=async()=>{try{$('generate').disabled=true;const d=await json('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:$('prompt').value,seed:Number($('seed').value),solver:$('solver').value,mode:$('rollback').checked?'full':'no_rollback'})});currentId=d.run_id;$('runTitle').textContent='Starting model…';$('sourceBadge').textContent='Starting live run';setTimeout(refresh,1200);}catch(e){$('record').textContent=e.message;$('generate').disabled=!generationEnabled;}};
-loadRuntime();refresh();setInterval(async()=>{await refresh();if(currentId&&(current?.run_id!==currentId||!['complete','failed'].includes(current?.status)||(runIndex.find(r=>r.run_id===currentId)?.assets&&!current?.assets)))await update();},2500);
+loadRuntime();refresh();setInterval(async()=>{await refresh();const listed=runIndex.find(r=>r.run_id===currentId);if(currentId&&(current?.run_id!==currentId||!['complete','failed'].includes(current?.status)||(listed?.assets&&!current?.assets)||(listed?.comparison_run_id||null)!==(current?.comparison_run_id||null)||(listed?.comparison_error_type||null)!==(current?.comparison_error_type||null)))await update();},2500);
