@@ -2,7 +2,8 @@
 
 ## Rollback-on table video
 
-- File: [table-rollback-on.mp4](table-rollback-on.mp4)
+- Original video: [table-rollback-on.mp4](table-rollback-on.mp4)
+- README animation: [table-rollback-on.gif](table-rollback-on.gif), derived from that video at 800 pixels wide and 12 fps, looping.
 - Original file: `demo/runs/live-20261027-075703-106000/assembly_replay.mp4`
 - Prompt: `Table featuring a flat rectangular surface over four evenly spaced legs.`
 - Seed: 42; rollback: on; solver: Gurobi 13.0.3.

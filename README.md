@@ -19,11 +19,13 @@ and physics-informed rollback.
 
 For the paper's table prompt with seed 42, the full pipeline produced a
 **113-brick structure that passed geometry and static stability checks**, after
-one physics-informed rollback. Generation took 402.26 seconds, excluding loading.
+one physics-informed rollback. The run previewed below took 400.73 seconds, excluding loading.
 This is the Mac/Gurobi demonstration; our teammate's RTX 5060/HiGHS experiment
 uses a separate hardware and solver configuration.
 
-![Original Gurobi force-model result](docs/gurobi-preview.png)
+[![Rollback-on table: animated assembly replay](docs/media/table-rollback-on.gif)](docs/media/table-rollback-on.mp4)
+
+Animated assembly replay; click the preview for the full-quality MP4.
 
 ## Report media: table replay and Figure 6
 
