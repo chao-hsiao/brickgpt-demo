@@ -23,21 +23,15 @@ one physics-informed rollback. The run previewed below took 400.73 seconds, excl
 This is the Mac/Gurobi demonstration; our teammate's RTX 5060/HiGHS experiment
 uses a separate hardware and solver configuration.
 
-[![Rollback-on table: animated assembly replay](docs/media/table-rollback-on.gif)](docs/media/table-rollback-on.mp4)
+![Rollback-on table: animated assembly replay](docs/media/table-rollback-on.gif)
 
-Animated assembly replay; click the preview for the full-quality MP4.
+Assembly replay of the completed 113-brick Mac/Gurobi table, corresponding to
+panel (b) in Figure 6.
 
-## Report media: table replay and Figure 6
-
-[Watch or download the rollback-on table MP4](docs/media/table-rollback-on.mp4)
-(12 seconds, H.264). This is an **assembly replay of the completed 113-brick Mac/Gurobi
-output**, corresponding to panel (b) below. It is not a recording of live inference
-or of the rollback operation. The run used seed 42, passed static-force checks and
-performed one rollback from 174 bricks to a stable prefix of 3, then regenerated.
+## Figure 6: rollback comparison
 
 ![Figure 6: table outputs with failing bricks highlighted in red](docs/media/figure6-force-colours.png)
 
-[Download the full-resolution Figure 6 PNG](docs/media/figure6-force-colours.png).
 Red marks bricks whose maximum voxel force score is **at least 1**, the generator's
 failure threshold. The rollback-off RTX and Mac layouts have 5 and 17 failing bricks,
 respectively; both rollback-on layouts have zero. The four panels share camera and
